@@ -138,7 +138,7 @@ export default function GoalForm() {
         "type" in err &&
         (err as { type: string }).type === "RATE_LIMIT"
       ) {
-        setPaywallData((err as { detail: RateLimitError }).detail);
+        setPaywallData((err as unknown as { type: string; detail: RateLimitError }).detail);
       } else {
         setError(err instanceof Error ? err.message : "An error occurred.");
       }
