@@ -1,0 +1,432 @@
+
+app:
+  name: GoalBuilder
+  version: 1.0.0
+  tagline: "Plan smarter. Save with purpose."
+  open_source: true
+  disclaimer:
+    title: "Educational Use Only"
+    text: >
+      This tool is provided for educational and illustrative purposes only.
+      It does not constitute investment advice, financial advice, or a recommendation
+      to buy or sell any securities. Investment returns are not guaranteed and
+      past performance is not indicative of future results.
+    display:
+      location: results_page
+      style: bold
+      required_acknowledgement: true
+
+# ─── COUNTRIES ────────────────────────────────────────────────────────────────
+# Each country has its own inflation default, currency, and benchmark indices.
+# Inflation defaults reflect long-run averages for each market.
+countries:
+  US:
+    currency: USD
+    inflation:
+      default_rate: 0.025      # 2.5% — US long-run average
+      allow_user_override: true
+    bonds:
+      benchmark:
+        name: "US 10-Year Treasury"
+        annual_mean: 0.024
+        annual_std: 0.058
+        lookback_years: 10
+        source: "FRED (Federal Reserve Economic Data)"
+    equities:
+      benchmark:
+        name: "S&P 500"
+        annual_mean: 0.108
+        annual_std: 0.158
+        lookback_years: 10
+        source: "FRED / Yahoo Finance"
+
+  UK:
+    currency: GBP
+    inflation:
+      default_rate: 0.025      # 2.5% — Bank of England target zone
+      allow_user_override: true
+    bonds:
+      benchmark:
+        name: "UK 10-Year Gilt"
+        annual_mean: 0.017
+        annual_std: 0.068
+        lookback_years: 10
+        source: "Bank of England"
+    equities:
+      benchmark:
+        name: "FTSE 100"
+        annual_mean: 0.067
+        annual_std: 0.142
+        lookback_years: 10
+        source: "Yahoo Finance"
+
+  EU:
+    currency: EUR
+    inflation:
+      default_rate: 0.020      # 2.0% — ECB target
+      allow_user_override: true
+    bonds:
+      benchmark:
+        name: "German 10-Year Bund"
+        annual_mean: 0.005
+        annual_std: 0.051
+        lookback_years: 10
+        source: "ECB Statistical Data Warehouse"
+    equities:
+      benchmark:
+        name: "Euro Stoxx 50"
+        annual_mean: 0.078
+        annual_std: 0.161
+        lookback_years: 10
+        source: "Yahoo Finance"
+
+  NG:
+    currency: NGN
+    inflation:
+      default_rate: 0.22       # 22% — Nigeria high-inflation environment (CBN data)
+      allow_user_override: true
+      note: >
+        Nigeria's inflation is structurally high. Users should verify the
+        current rate from the National Bureau of Statistics (NBS) and override
+        if conditions have changed significantly.
+    bonds:
+      benchmark:
+        name: "Nigeria 10-Year FGN Bond"
+        annual_mean: 0.135
+        annual_std: 0.048
+        lookback_years: 10
+        source: "CBN / FMDQ"
+    equities:
+      benchmark:
+        name: "NGX All-Share Index"
+        annual_mean: 0.142
+        annual_std: 0.248
+        lookback_years: 10
+        source: "NGX Group"
+
+# ─── FINANCIAL MODEL ──────────────────────────────────────────────────────────
+financial_model:
+  contribution_frequency: monthly
+  compounding: monthly
+
+  return_calculation:
+    method: hardcoded_historical_average   # v1 uses hardcoded values above
+    future_method: live_api                 # v2 will pull from live sources
+    convert_to_monthly: true
+    formulas:
+      monthly_mean: "(1 + annual_mean)^(1/12) - 1"
+      monthly_std: "annual_std / sqrt(12)"
+
+  # Inflation adjustment reduces future portfolio value to today's purchasing power
+  inflation:
+    enabled: true
+    adjust_goal_value: true    # FV is expressed in today's money; inflate it forward
+
+  shock:
+    enabled: true
+    type: standard_deviation
+    default_multiplier: 1.0
+    allow_user_override: true
+
+  simulation:
+    type: monte_carlo
+    iterations: 1000
+    distribution: normal         # v2: add student_t for fat tails
+    confidence_intervals:
+      - 0.10    # Pessimistic — used as "worst case" in results
+      - 0.25
+      - 0.50    # Median
+      - 0.75
+      - 0.90    # Optimistic
+
+# ─── GOAL LOGIC ───────────────────────────────────────────────────────────────
+goal_logic:
+  inputs:
+    - goal_name
+    - goal_value                  # Target amount in local currency
+    - existing_savings            # Amount already saved toward this goal (can be 0)
+    - time_horizon_years
+    - country
+    - asset_type                  # equities | bonds | mixed
+    - risk_profile                # conservative | balanced | growth | aggressive
+
+  calculation:
+    solve_for: monthly_contribution
+    formula: >
+      PMT = (FV - PV * (1+r)^n) * r / ((1+r)^n - 1)
+      where FV = inflation-adjusted goal value,
+            PV = existing_savings,
+            r  = blended monthly return (weighted by allocation),
+            n  = time_horizon_months
+
+  validation:
+    require_positive_surplus: true   # Monthly income - expenses - PMT > 0
+    warning_if_shortfall: true
+
+  outputs:
+    - required_monthly_savings
+    - inflation_adjusted_goal_value
+    - time_to_goal
+    - projected_portfolio_value_by_percentile   # 10th/50th/90th at each month (for chart)
+    - probability_of_success                    # % of 1000 simulations that hit target
+    - surplus_gap                               # Disposable income minus required savings
+
+# ─── OPTIMIZER ────────────────────────────────────────────────────────────────
+optimizer:
+  enabled: true
+  objectives:
+    - minimize_time
+    - minimize_monthly_contribution
+    - maximize_probability
+    - minimize_volatility
+
+  adjustable_parameters:
+    - monthly_contribution
+    - time_horizon
+    - asset_allocation
+    - shock_multiplier
+
+  asset_allocation:
+    allow_mixed_portfolios: true
+    profiles:
+      conservative:
+        bonds: 0.80
+        equities: 0.20
+        description: "Capital preservation. Lower returns, lower risk."
+      balanced:
+        bonds: 0.60
+        equities: 0.40
+        description: "Moderate growth with downside protection."
+      growth:
+        bonds: 0.30
+        equities: 0.70
+        description: "Higher long-term returns with meaningful volatility."
+      aggressive:
+        bonds: 0.10
+        equities: 0.90
+        description: "Maximum growth. Best for long time horizons."
+
+# ─── PDF REPORTS ──────────────────────────────────────────────────────────────
+pdf_reports:
+  enabled: true
+  generator: reportlab              # Python-side generation
+  id_scheme: uuid4                  # Each report gets a random UUID — no PII linked
+
+  # Report UUID lets the operator count and audit reports without storing personal data
+  report_contents:
+    - report_uuid
+    - generated_at
+    - goal_summary                  # Name, target, country, time horizon
+    - allocation_profile
+    - required_monthly_savings
+    - inflation_adjusted_goal_value
+    - monte_carlo_percentiles       # 10th / 50th / 90th outcome table
+    - probability_of_success
+    - surplus_analysis
+    - disclaimer
+
+  tracking:
+    # Stored in `reports` table — no email or name, just anonymous stats
+    fields_stored:
+      - report_uuid
+      - created_at
+      - downloaded_at
+      - country
+      - goal_name               # Non-identifying but useful for content planning
+      - ip_hash                 # SHA-256 of IP — not reversible to original IP
+      - paid                    # Whether this report required a $3 payment
+      - stripe_session_id       # Nullable — only set for paid reports
+
+# ─── RATE LIMITING & MONETISATION ────────────────────────────────────────────
+monetisation:
+  free_tier:
+    reports_per_day: 2
+    scope: per_ip_hash          # Rate-limited by hashed IP address
+
+  paid_tier:
+    trigger: exceeds_free_limit
+    price_usd: 3.00
+    processor: stripe
+    model: one_time_checkout    # Each $3 purchase unlocks one additional report
+    # On success: Stripe redirects to /payment/success?session_id=...
+    # Backend verifies session, grants one additional report slot for that IP/day
+
+  buy_me_a_coffee:
+    # Shown before EVERY download — free or paid. Always optional (skippable).
+    prompt: "GoalBuilder is free and open source. If it helped you, consider buying us a coffee."
+    action: open_bmac_url       # BMAC_URL configured in .env
+    skippable: true
+
+# ─── NEWSLETTER / MAILING LIST ───────────────────────────────────────────────
+newsletter:
+  enabled: true
+  opt_in:
+    location: pdf_download_modal     # Shown alongside the coffee prompt and download button
+    required: false                  # Always optional
+    label: "Get financial planning tips — house deposits, education funds, debt payoff, and more."
+    fields:
+      - email                        # Only field collected
+    gdpr_note: "No spam. Unsubscribe anytime."
+
+  content_themes:
+    - saving_for_a_house
+    - kids_education_fund
+    - reducing_credit_card_debt
+    - emergency_fund_building
+    - retirement_planning
+    - goal_setting_psychology
+    - feature_updates
+
+  storage:
+    table: subscribers
+    fields:
+      - email
+      - subscribed_at
+      - country                      # From their goal — useful for localised tips
+      - source                       # Always 'pdf_download' for now
+      - active
+
+  integrations:
+    primary: mailchimp               # Optional — set MAILCHIMP_API_KEY in .env
+    fallback: local_db               # If no Mailchimp key, store in PostgreSQL only
+    admin_export: true               # GET /admin/subscribers returns CSV
+
+# ─── UI / THEME ───────────────────────────────────────────────────────────────
+ui:
+  theme:
+    feel: terminal
+    font: "JetBrains Mono"           # Fallbacks: Fira Code → Courier New → monospace
+    colors:
+      background: "#0a0a0a"
+      surface: "#111111"
+      border: "#2a2a2a"
+      text_primary: "#e0e0e0"
+      text_muted: "#666666"
+      text_white: "#ffffff"
+      # Chart / status colors only — not used in structural UI
+      chart_optimistic: "#22c55e"    # Green — 90th percentile line
+      chart_median: "#3b82f6"        # Blue — 50th percentile line
+      chart_pessimistic: "#ef4444"   # Red — 10th percentile line
+      success: "#22c55e"
+      warning: "#f59e0b"
+      error: "#ef4444"
+
+  landing_page:
+    style: boot_sequence            # Terminal boot animation before form
+    lines:
+      - "GOALBUILDER v1.0.0"
+      - "Initializing simulation engine... [OK]"
+      - "Loading benchmark data... [OK]"
+      - "Ready."
+      - "> Press [ENTER] to begin"
+
+  goal_form:
+    style: multi_step
+    steps:
+      - id: country
+        label: "Select your country"
+      - id: goal
+        label: "Define your goal"
+        fields: [goal_name, goal_value, time_horizon_years, existing_savings]
+      - id: budget
+        label: "Your monthly budget"
+        fields: [monthly_income, monthly_expenses]
+        modes: [simple, detailed]
+      - id: allocation
+        label: "Choose a risk profile"
+        fields: [risk_profile]
+
+  results_dashboard:
+    layout: grid_panels             # Terminal-style bordered panels
+    components:
+      - goal_summary_panel
+      - projection_chart            # Line chart — 3 percentile lines
+      - probability_gauge           # ASCII-style progress bar
+      - required_savings_panel
+      - surplus_analysis_panel
+      - download_button
+      - new_scenario_button
+
+  download_modal:
+    order:
+      1: coffee_prompt              # "Buy us a coffee" with BMC link
+      2: newsletter_opt_in          # Email opt-in (optional)
+      3: download_button            # Actual PDF download
+
+  income_expense:
+    modes:
+      - simple                      # Single "monthly surplus" input
+      - detailed                    # Income + itemised expense categories
+
+# ─── DATA MANAGEMENT ──────────────────────────────────────────────────────────
+data_management:
+  benchmark_source: hardcoded       # v1 — values baked into backend config
+  cache_benchmark_data: true
+  cache_duration_hours: 24
+  future_live_sources:
+    US: "FRED API (api.stlouisfed.org)"
+    UK: "Bank of England API"
+    EU: "ECB Statistical Data Warehouse"
+    NG: "NGX Group / CBN API (fallback to static)"
+
+# ─── ADMIN & ANALYTICS ───────────────────────────────────────────────────────
+admin:
+  # Protected by ADMIN_API_KEY header — set in .env
+  endpoints:
+    - path: /admin/stats
+      returns:
+        - total_reports_generated
+        - reports_today
+        - reports_this_week
+        - reports_this_month
+        - reports_by_country
+        - total_paid_reports
+        - total_revenue_usd            # paid_reports × $3
+        - total_subscribers
+    - path: /admin/subscribers
+      returns: CSV export of subscribers table
+
+# ─── SECURITY ─────────────────────────────────────────────────────────────────
+security:
+  user_data_stored: false           # No accounts, no login, no PII by default
+  ip_storage: hashed_only           # SHA-256(IP) — not reversible
+  email_storage: encrypted          # Subscriber emails stored encrypted at rest
+  gdpr_compliant: true
+  no_tracking_cookies: true
+
+# ─── TECH STACK (LOCKED) ─────────────────────────────────────────────────────
+deployment:
+  backend:
+    framework: FastAPI
+    language: Python
+    runtime: uvicorn
+    key_libraries:
+      - numpy          # Monte Carlo simulation
+      - scipy          # Statistics
+      - reportlab      # PDF generation
+      - psycopg2       # PostgreSQL
+      - stripe         # Payments
+      - slowapi        # Rate limiting middleware
+      - mailchimp3     # Optional newsletter sync
+
+  frontend:
+    framework: "Next.js 14 (App Router)"
+    language: TypeScript
+    styling: "Tailwind CSS"
+    charting: recharts
+    key_libraries:
+      - recharts
+      - "@stripe/stripe-js"
+
+  database: PostgreSQL
+  schema:
+    tables:
+      - reports         # One row per generated report
+      - daily_usage     # Rate limiting: ip_hash × date × count
+      - subscribers     # Newsletter opt-ins
+
+  local_dev: docker-compose         # PostgreSQL via Docker, backend + frontend run locally
+  hosting_suggestions:
+    - "Render (backend) + Vercel (frontend) + Supabase (PostgreSQL)"
+    - "Railway (full stack)"
+    - "Self-hosted VPS"

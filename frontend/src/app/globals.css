@@ -1,0 +1,176 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Root ───────────────────────────────────────────────────────────────── */
+:root {
+  --bg:      #0a0a0a;
+  --surface: #111111;
+  --border:  #2a2a2a;
+  --text:    #d4d4d4;
+  --muted:   #666666;
+  --white:   #ffffff;
+}
+
+html, body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Scrollbar — minimal, terminal-style ────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ─── Selection ──────────────────────────────────────────────────────────── */
+::selection {
+  background: #ffffff22;
+  color: var(--white);
+}
+
+/* ─── Inputs — reset to terminal look ───────────────────────────────────── */
+input, select, textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--white);
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+  padding: 8px 12px;
+  transition: border-color 0.15s;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #555;
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+/* ─── Panel borders — sharp, no radius ───────────────────────────────────── */
+.panel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 20px;
+}
+
+.panel-header {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+}
+
+/* ─── Terminal prompt character ──────────────────────────────────────────── */
+.prompt::before {
+  content: "$ ";
+  color: var(--muted);
+}
+
+/* ─── Cursor blink ───────────────────────────────────────────────────────── */
+.cursor::after {
+  content: "█";
+  animation: blink 1s step-end infinite;
+  color: var(--white);
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ─── ASCII progress bar ─────────────────────────────────────────────────── */
+.progress-bar {
+  font-size: 12px;
+  letter-spacing: -0.5px;
+}
+
+/* ─── Scanline overlay (subtle, optional) ────────────────────────────────── */
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* ─── Button styles ──────────────────────────────────────────────────────── */
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+
+.btn:hover {
+  background: var(--border);
+  color: var(--white);
+}
+
+.btn-primary {
+  border-color: var(--white);
+  color: var(--white);
+}
+
+.btn-primary:hover {
+  background: var(--white);
+  color: var(--bg);
+}
+
+/* ─── Recharts override — match terminal theme ───────────────────────────── */
+.recharts-cartesian-axis-tick-value {
+  fill: #666 !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #1a1a1a !important;
+}
+
+.recharts-tooltip-wrapper {
+  font-family: "JetBrains Mono", monospace !important;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.25s ease forwards;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up {
+  animation: slideUp 0.35s ease forwards;
+}

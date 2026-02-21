@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       goalbuilder
+      POSTGRES_USER:     goalbuilder
+      POSTGRES_PASSWORD: goalbuilder
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goalbuilder"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI backend ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:          postgresql://goalbuilder:goalbuilder@postgres:5432/goalbuilder
+      STRIPE_SECRET_KEY:     ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_ID:       ${STRIPE_PRICE_ID}
+      BMAC_URL:              ${BMAC_URL}
+      ADMIN_API_KEY:         ${ADMIN_API_KEY}
+      MAILCHIMP_API_KEY:     ${MAILCHIMP_API_KEY:-}
+      MAILCHIMP_LIST_ID:     ${MAILCHIMP_LIST_ID:-}
+      MAILCHIMP_SERVER_PREFIX: ${MAILCHIMP_SERVER_PREFIX:-}
+      FRONTEND_URL:          ${FRONTEND_URL:-http://localhost:3000}
+      ENVIRONMENT:           ${ENVIRONMENT:-development}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Next.js frontend ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL:  http://localhost:8000
+      NEXT_PUBLIC_BMAC_URL: ${BMAC_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
