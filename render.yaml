@@ -1,0 +1,39 @@
+databases:
+  - name: goalbuilder-db
+    databaseName: goalbuilder
+    user: goalbuilder
+    plan: free
+
+services:
+  - type: web
+    name: goalbuilder-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: goalbuilder-db
+          property: connectionString
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: BMAC_URL
+        value: https://buymeacoffee.com/goalbuilder
+      - key: FRONTEND_URL
+        value: https://frontend-phi-teal-37.vercel.app
+      - key: ENVIRONMENT
+        value: production
+      - key: STRIPE_SECRET_KEY
+        value: ""
+      - key: STRIPE_WEBHOOK_SECRET
+        value: ""
+      - key: STRIPE_PRICE_ID
+        value: ""
+      - key: MAILCHIMP_API_KEY
+        value: ""
+      - key: MAILCHIMP_LIST_ID
+        value: ""
+      - key: MAILCHIMP_SERVER_PREFIX
+        value: ""
